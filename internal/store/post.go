@@ -15,8 +15,15 @@ type Post struct {
 	Tags      []string  `json:"tags"`
 	CreatedAt string    `json:"created_at"`
 	UpdatedAt string    `json:"updated_at"`
-	Comments  []Comment `json:"comments"`
 	Version   int64     `json:"version"`
+	Comments  []Comment `json:"comments"`
+	User      *User     `json:"user"`
+}
+
+type PostWithMetadata struct {
+	Post
+	User
+	CommentsCount int64 `json:"comments_count"`
 }
 
 type CreatePostResponse struct {
@@ -161,4 +168,65 @@ func (store *PostStore) Update(ctx context.Context, post *Post) error {
 
 	return nil
 
+}
+
+func (store *PostStore) GetByUserId(ctx context.Context, userID int64, fq PaginationFeedQuery) ([]*PostWithMetadata, error) {
+	query := `
+		SELECT 
+			p.id, p.title, p."content", p.tags, p."version", p.created_at,
+			u."id" AS user_id, u.username, u.email,
+			COUNT(c."id") AS comments_count
+		FROM posts p
+		LEFT JOIN comments c ON p."id" = c.post_id
+		LEFT JOIN users u ON p.user_id = u."id"
+		JOIN followers f ON p.user_id = f.user_id OR p.user_id = $1
+		WHERE 
+			f.user_id= $1 
+			AND (p.title ILIKE '%' || $4 || '%' OR p.content ILIKE '%' || $4 || '%')
+			AND (p.tags @> $5 OR $5 = '{}')
+			AND (p.created_at >= $6 OR $6 IS NULL)
+		GROUP BY p.id, u."id"
+		ORDER BY p.created_at ` + fq.Sort + `
+		LIMIT $2 OFFSET $3
+		`
+
+	ctx, cancel := context.WithTimeout(ctx, QueryTimeoutDuration)
+	defer cancel()
+
+	rows, err := store.db.QueryContext(
+		ctx,
+		query,
+		userID,
+		fq.Limit,
+		fq.Offset,
+		fq.Search,
+		pq.Array(fq.Tags),
+		fq.Since,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var posts []*PostWithMetadata
+	for rows.Next() {
+		var post PostWithMetadata
+		if err := rows.Scan(
+			&post.Post.ID,
+			&post.Post.Title,
+			&post.Post.Content,
+			pq.Array(&post.Post.Tags),
+			&post.Post.Version,
+			&post.Post.CreatedAt,
+			&post.User.ID,
+			&post.User.Username,
+			&post.User.Email,
+			&post.CommentsCount,
+		); err != nil {
+			return nil, err
+		}
+		posts = append(posts, &post)
+	}
+
+	return posts, nil
 }

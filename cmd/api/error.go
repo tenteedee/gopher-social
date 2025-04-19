@@ -22,3 +22,9 @@ func (app *application) NotFound(w http.ResponseWriter, r *http.Request) {
 
 	WriteJSON(w, http.StatusNotFound, "not found")
 }
+
+func (app *application) conflictResponse(w http.ResponseWriter, r *http.Request) {
+	log.Printf("conflict: %v path: %v", r.Method, r.URL.Path)
+
+	WriteJSON(w, http.StatusConflict, "conflict")
+}

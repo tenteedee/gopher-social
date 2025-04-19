@@ -22,3 +22,7 @@ migrate-status:
 .PHONY: migrate-force
 migrate-force:
 	migrate -path $(MIGRATIONS_PATH) -database "$(DB_URL)" -verbose force 1
+
+.PHONY: seed
+seed:
+	go run cmd/migrate/seed/main.go	

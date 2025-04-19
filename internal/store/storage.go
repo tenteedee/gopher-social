@@ -8,8 +8,8 @@ import (
 )
 
 var (
-	ErrorNotFound = errors.New("resource not found")
-
+	ErrorNotFound        = errors.New("resource not found")
+	ErrConflict          = errors.New("resource already exists")
 	QueryTimeoutDuration = time.Second * 5
 )
 
@@ -19,14 +19,22 @@ type Storage struct {
 		GetByID(context.Context, int64) (*Post, error)
 		Delete(context.Context, int64) error
 		Update(context.Context, *Post) error
+		GetByUserId(context.Context, int64, PaginationFeedQuery) ([]*PostWithMetadata, error)
 	}
 
 	User interface {
 		Create(context.Context, *User) error
+		GetById(context.Context, int64) (*User, error)
 	}
 
 	Comment interface {
 		GetCommentByPostId(context.Context, int64) ([]Comment, error)
+		Create(context.Context, *Comment) error
+	}
+
+	Follow interface {
+		Follow(context.Context, int64, int64) error
+		Unfollow(context.Context, int64, int64) error
 	}
 }
 
@@ -35,5 +43,6 @@ func NewStorage(db *sql.DB) *Storage {
 		Post:    &PostStore{db: db},
 		User:    &UserStore{db: db},
 		Comment: &CommentStore{db: db},
+		Follow:  &FollowStore{db: db},
 	}
 }
