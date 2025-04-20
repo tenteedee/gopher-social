@@ -19,6 +19,20 @@ type FollowUserPayload struct {
 	FollowedUserID int64 `json:"followed_user_id"`
 }
 
+// Get User by ID godoc
+//
+//	@Summary		Fetch a user by ID
+//	@Description	Fetch a user by ID
+//	@Tags			users
+//	@Accept			json
+//	@Produce		json
+//	@Param			id	path		int	true	"User ID"
+//	@Success		200	{object}	store.User
+//	@Failure		400	{object}	error
+//	@Failure		404	{object}	error
+//	@Failure		500	{object}	error
+//	@Security		ApiKeyAuth
+//	@Router			/users/{id} [get]
 func (app *application) getUserByIdHandler(w http.ResponseWriter, r *http.Request) {
 	user := app.getCurrentUser(r)
 
@@ -28,6 +42,20 @@ func (app *application) getUserByIdHandler(w http.ResponseWriter, r *http.Reques
 	}
 }
 
+// Follow User godoc
+//
+//	@Summary		Follow a user
+//	@Description	Follow a user
+//	@Tags			users
+//	@Accept			json
+//	@Produce		json
+//	@Param			id	path		int	true	"User ID"
+//	@Success		204 {object}	nil
+//	@Failure		400	{object}	error
+//	@Failure		404	{object}	error
+//	@Failure		500	{object}	error
+//	@Security		ApiKeyAuth
+//	@Router			/users/{id}/follow [put]
 func (app *application) followUserHandler(w http.ResponseWriter, r *http.Request) {
 	user := app.getCurrentUser(r)
 	userID := user.ID
@@ -50,10 +78,10 @@ func (app *application) followUserHandler(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		switch err {
 		case store.ErrorNotFound:
-			app.NotFound(w, r)
+			app.NotFound(w, r, err)
 			return
 		case store.ErrConflict:
-			app.conflictResponse(w, r)
+			app.conflictResponse(w, r, err)
 			return
 		default:
 			app.InternalServerError(w, r, err)
@@ -63,6 +91,20 @@ func (app *application) followUserHandler(w http.ResponseWriter, r *http.Request
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// Unfollow User godoc
+//
+//	@Summary		Unfollow a user
+//	@Description	Unfollow a user
+//	@Tags			users
+//	@Accept			json
+//	@Produce		json
+//	@Param			id	path		int	true	"User ID"
+//	@Success		204	{object}	nil
+//	@Failure		400	{object}	error
+//	@Failure		404	{object}	error
+//	@Failure		500	{object}	error
+//	@Security		ApiKeyAuth
+//	@Router			/users/{id}/unfollow [put]
 func (app *application) unfollowUserHandler(w http.ResponseWriter, r *http.Request) {
 	user := app.getCurrentUser(r)
 	userID := user.ID
@@ -79,7 +121,7 @@ func (app *application) unfollowUserHandler(w http.ResponseWriter, r *http.Reque
 	if err != nil {
 		switch err {
 		case store.ErrorNotFound:
-			app.NotFound(w, r)
+			app.NotFound(w, r, err)
 			return
 		default:
 			app.InternalServerError(w, r, err)
@@ -101,7 +143,7 @@ func (app *application) userContextMiddleware(next http.Handler) http.Handler {
 		if err != nil {
 			switch err {
 			case store.ErrorNotFound:
-				app.NotFound(w, r)
+				app.NotFound(w, r, err)
 				return
 			default:
 				app.InternalServerError(w, r, err)

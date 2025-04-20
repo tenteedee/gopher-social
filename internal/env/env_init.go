@@ -9,6 +9,7 @@ import (
 var (
 	ApiEnv            string
 	ApiPort           string
+	ApiURL            string
 	DbUser            string
 	DbPassword        string
 	DbHost            string
@@ -27,6 +28,7 @@ func Init() {
 
 	ApiEnv = getEnvWithDefault("API_ENV", "development")
 	ApiPort = getEnvWithDefault("API_PORT", ":8080")
+	ApiURL = getEnvWithDefault("EXTERNAL_URL", "localhost:8080")
 
 	DbUser = getEnvWithDefault("DB_USER", "root")
 	DbPassword = getEnvWithDefault("DB_PASSWORD", "password")

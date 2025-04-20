@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"log"
 	"net/http"
 	"strconv"
 
@@ -26,6 +25,11 @@ type UpdatePostPayload struct {
 	Tags    *[]string `json:"tags"`
 }
 
+type CreateCommentPayload struct {
+	UserID  int64  `json:"user_id"`
+	Content string `json:"content"`
+}
+
 func (app *application) postContextMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		postID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
@@ -38,7 +42,7 @@ func (app *application) postContextMiddleware(next http.Handler) http.Handler {
 		if err != nil {
 			switch err {
 			case store.ErrorNotFound:
-				app.NotFound(w, r)
+				app.NotFound(w, r, err)
 				return
 			default:
 				app.InternalServerError(w, r, err)
@@ -59,6 +63,20 @@ func getPostFromContext(r *http.Request) (*store.Post, error) {
 	return post, nil
 }
 
+// Create Post godoc
+//
+//	@Summary		Create a post
+//	@Description	Create a post
+//	@Tags			posts
+//	@Accept			json
+//	@Produce		json
+//	@Param			payload	body		CreatePostPayload	true	"Post payload"
+//	@Success		201		{object}	store.Post
+//	@Failure		400		{object}	error
+//	@Failure		401		{object}	error
+//	@Failure		500		{object}	error
+//	@Security		ApiKeyAuth
+//	@Router			/posts [post]
 func (app *application) createPostHandler(w http.ResponseWriter, r *http.Request) {
 	var payload CreatePostPayload
 	if err := ReadJSON(w, r, &payload); err != nil {
@@ -92,12 +110,26 @@ func (app *application) createPostHandler(w http.ResponseWriter, r *http.Request
 
 }
 
+// Get Post by ID godoc
+//
+//	@Summary		Fetch a Post by ID
+//	@Description	Fetch a Post by ID
+//	@Tags			posts
+//	@Accept			json
+//	@Produce		json
+//	@Param			id	path		int	true	"Post ID"
+//	@Success		200	{object}	store.Post
+//	@Failure		400	{object}	error
+//	@Failure		404	{object}	error
+//	@Failure		500	{object}	error
+//	@Security		ApiKeyAuth
+//	@Router			/posts/{id} [get]
 func (app *application) getPostByIdHandler(w http.ResponseWriter, r *http.Request) {
 	post, err := getPostFromContext(r)
 	if err != nil {
 		switch err {
 		case store.ErrorNotFound:
-			app.NotFound(w, r)
+			app.NotFound(w, r, err)
 			return
 		default:
 			app.InternalServerError(w, r, err)
@@ -127,12 +159,25 @@ func (app *application) getPostByIdHandler(w http.ResponseWriter, r *http.Reques
 	}
 }
 
+// DeletePost godoc
+//
+//	@Summary		Deletes a post
+//	@Description	Delete a post by ID
+//	@Tags			posts
+//	@Accept			json
+//	@Produce		json
+//	@Param			id	path		int	true	"Post ID"
+//	@Success		204	{object}	string
+//	@Failure		404	{object}	error
+//	@Failure		500	{object}	error
+//	@Security		ApiKeyAuth
+//	@Router			/posts/{id} [delete]
 func (app *application) deletePostHandler(w http.ResponseWriter, r *http.Request) {
 	post, err := getPostFromContext(r)
 	if err != nil {
 		switch err {
 		case store.ErrorNotFound:
-			app.NotFound(w, r)
+			app.NotFound(w, r, err)
 			return
 		default:
 			app.InternalServerError(w, r, err)
@@ -143,7 +188,7 @@ func (app *application) deletePostHandler(w http.ResponseWriter, r *http.Request
 	if err := app.store.Post.Delete(r.Context(), post.ID); err != nil {
 		switch err {
 		case store.ErrorNotFound:
-			app.NotFound(w, r)
+			app.NotFound(w, r, err)
 			return
 		default:
 			app.InternalServerError(w, r, err)
@@ -153,12 +198,28 @@ func (app *application) deletePostHandler(w http.ResponseWriter, r *http.Request
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// UpdatePost godoc
+//
+//	@Summary		Updates a post
+//	@Description	Updates a post by ID
+//	@Tags			posts
+//	@Accept			json
+//	@Produce		json
+//	@Param			id		path		int					true	"Post ID"
+//	@Param			payload	body		UpdatePostPayload	true	"Post payload"
+//	@Success		200		{object}	store.Post
+//	@Failure		400		{object}	error
+//	@Failure		401		{object}	error
+//	@Failure		404		{object}	error
+//	@Failure		500		{object}	error
+//	@Security		ApiKeyAuth
+//	@Router			/posts/{id} [patch]
 func (app *application) updatePostHandler(w http.ResponseWriter, r *http.Request) {
 	post, err := getPostFromContext(r)
 	if err != nil {
 		switch err {
 		case store.ErrorNotFound:
-			app.NotFound(w, r)
+			app.NotFound(w, r, err)
 			return
 		default:
 			app.InternalServerError(w, r, err)
@@ -202,12 +263,28 @@ func (app *application) updatePostHandler(w http.ResponseWriter, r *http.Request
 
 }
 
+// Create Comment godoc
+//
+//	@Summary		Create a comment
+//	@Description	Create a comment for a Post
+//	@Tags			posts
+//	@Accept			json
+//	@Produce		json
+//	@Param			id		path		int						true	"Post ID"
+//	@Param			payload	body		CreateCommentPayload	true	"Comment payload"
+//	@Success		200		{object}	store.Comment
+//	@Failure		400		{object}	error
+//	@Failure		401		{object}	error
+//	@Failure		404		{object}	error
+//	@Failure		500		{object}	error
+//	@Security		ApiKeyAuth
+//	@Router			/posts/{id}/comments [post]
 func (app *application) createCommentHandler(w http.ResponseWriter, r *http.Request) {
 	post, err := getPostFromContext(r)
 	if err != nil {
 		switch err {
 		case store.ErrorNotFound:
-			app.NotFound(w, r)
+			app.NotFound(w, r, err)
 			return
 		default:
 			app.InternalServerError(w, r, err)
@@ -215,28 +292,35 @@ func (app *application) createCommentHandler(w http.ResponseWriter, r *http.Requ
 		}
 	}
 
-	var payload store.Comment
+	var payload CreateCommentPayload
 	if err := ReadJSON(w, r, &payload); err != nil {
 		app.BadRequest(w, r, err)
 		return
 	}
-
-	log.Println(payload)
 
 	if err := Validate.Struct(payload); err != nil {
 		app.BadRequest(w, r, err)
 		return
 	}
 
-	payload.PostID = post.ID
-	log.Println(payload)
-
-	if err := app.store.Comment.Create(r.Context(), &payload); err != nil {
+	user, err := app.store.User.GetById(r.Context(), payload.UserID)
+	if err != nil {
 		app.InternalServerError(w, r, err)
 		return
 	}
 
-	if err := app.jsonResponse(w, http.StatusCreated, payload); err != nil {
+	var comment store.Comment
+	comment.PostID = post.ID
+	comment.UserID = payload.UserID
+	comment.Content = payload.Content
+	comment.User = *user
+
+	if err := app.store.Comment.Create(r.Context(), &comment); err != nil {
+		app.InternalServerError(w, r, err)
+		return
+	}
+
+	if err := app.jsonResponse(w, http.StatusCreated, comment); err != nil {
 		app.InternalServerError(w, r, err)
 		return
 	}

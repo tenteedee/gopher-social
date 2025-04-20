@@ -1,24 +1,29 @@
 package main
 
 import (
-	"log"
 	"net/http"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	httpSwagger "github.com/swaggo/http-swagger/v2"
+	"go.uber.org/zap"
+
+	docs "github.com/tenteedee/gopher-social/docs" // required for swagger to work
 	"github.com/tenteedee/gopher-social/internal/store"
 )
 
 type application struct {
 	config config
 	store  *store.Storage
+	logger *zap.SugaredLogger
 }
 
 type config struct {
 	address string
 	db      dbConfig
 	env     string
+	apiURL  string
 }
 
 type dbConfig struct {
@@ -43,6 +48,10 @@ func (app *application) mount() *chi.Mux {
 	// })
 	r.Route("/v1", func(r chi.Router) {
 		r.Get("/health", app.healthCheckHandler)
+
+		r.Get("/swagger/*", httpSwagger.Handler(
+			httpSwagger.URL("http://localhost:8080/v1/swagger/doc.json"), // The url pointing to API definition
+		))
 
 		r.Route("/posts", func(r chi.Router) {
 			// r.Get("/", app.getPostsHandler)
@@ -78,6 +87,10 @@ func (app *application) mount() *chi.Mux {
 }
 
 func (app *application) serve(mux *chi.Mux) error {
+	// Docs
+	docs.SwaggerInfo.Version = version
+	docs.SwaggerInfo.Host = app.config.apiURL
+	docs.SwaggerInfo.BasePath = "/v1"
 
 	server := &http.Server{
 		Addr:         app.config.address,
@@ -87,7 +100,10 @@ func (app *application) serve(mux *chi.Mux) error {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	log.Printf("Starting server on %s", app.config.address)
+	app.logger.Infow("server started",
+		"address", app.config.address,
+		"env", app.config.env,
+	)
 
 	return server.ListenAndServe()
 }
