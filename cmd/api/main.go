@@ -6,6 +6,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/tenteedee/gopher-social/internal/db"
 	"github.com/tenteedee/gopher-social/internal/env"
+	"github.com/tenteedee/gopher-social/internal/mailer"
 	"github.com/tenteedee/gopher-social/internal/store"
 	"go.uber.org/zap"
 )
@@ -47,6 +48,17 @@ func main() {
 			maxIdleTime:  env.DB_MAX_IDLE_TIME,
 		},
 		env: env.ApiEnv,
+		mail: mailConfig{
+			exp:       env.MailExp,
+			fromEmail: env.FromEmail,
+			sendgrid: sendgridConfig{
+				apikey: env.SendgridAPIKey,
+			},
+			mailTrap: mailTrapConfig{
+				apikey: env.MailTrapAPIKey,
+			},
+		},
+		frontendURL: env.FrontendURL,
 	}
 
 	// Logger
@@ -72,10 +84,17 @@ func main() {
 
 	storage := store.NewStorage(db)
 
+	mailer := mailer.NewSendGridMailer(cfg.mail.sendgrid.apikey, cfg.mail.fromEmail)
+	// mailtrap, err := mailer.NewMailTrapClient(cfg.mail.mailTrap.apikey, cfg.mail.fromEmail)
+	// if err != nil {
+	// 	logger.Fatal(err)
+	// }
+
 	app := &application{
 		config: cfg,
 		store:  storage,
 		logger: logger,
+		mailer: mailer,
 	}
 	mux := app.mount()
 

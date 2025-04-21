@@ -70,7 +70,7 @@ func getPostFromContext(r *http.Request) (*store.Post, error) {
 //	@Tags			posts
 //	@Accept			json
 //	@Produce		json
-//	@Param			payload	body		CreatePostPayload	true	"Post payload"
+//	@Param			payload	body		CreatePostPayload	true	"Post Information"
 //	@Success		201		{object}	store.Post
 //	@Failure		400		{object}	error
 //	@Failure		401		{object}	error

@@ -1,8 +1,10 @@
 package env
 
 import (
+	"log"
 	"os"
 	"strconv"
+	"time"
 )
 
 func getEnvWithDefault(key, defaultValue string) string {
@@ -19,4 +21,14 @@ func getEnvAsInt(key string, fallback int) int {
 		}
 	}
 	return fallback
+}
+
+func getEnvAsDuration(key string, defaultValue string) time.Duration {
+	value := getEnvWithDefault(key, defaultValue)
+	duration, err := time.ParseDuration(value)
+	if err != nil {
+		log.Printf("Error parsing duration for %s, using default: %v", key, err)
+		duration, _ = time.ParseDuration(defaultValue)
+	}
+	return duration
 }

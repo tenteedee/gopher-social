@@ -2,6 +2,7 @@ package env
 
 import (
 	"log"
+	"time"
 
 	"github.com/joho/godotenv"
 )
@@ -18,6 +19,11 @@ var (
 	DB_MAX_OPEN_CONNS int
 	DB_MAX_IDLE_CONNS int
 	DB_MAX_IDLE_TIME  string
+	MailExp           time.Duration
+	SendgridAPIKey    string
+	MailTrapAPIKey    string
+	FromEmail         string
+	FrontendURL       string
 )
 
 func Init() {
@@ -39,4 +45,11 @@ func Init() {
 	DB_MAX_OPEN_CONNS = getEnvAsInt("DB_MAX_OPEN_CONNS", 25)
 	DB_MAX_IDLE_CONNS = getEnvAsInt("DB_MAX_IDLE_CONNS", 25)
 	DB_MAX_IDLE_TIME = getEnvWithDefault("DB_MAX_IDLE_TIME", "15m")
+
+	MailExp = getEnvAsDuration("MAIL_EXP", "15m")
+	SendgridAPIKey = getEnvWithDefault("SENDGRID_API_KEY", "")
+	MailTrapAPIKey = getEnvWithDefault("MAILTRAP_API_KEY", "")
+	FromEmail = getEnvWithDefault("FROM_EMAIL", "")
+
+	FrontendURL = getEnvWithDefault("FRONTEND_URL", "http://localhost:5173")
 }

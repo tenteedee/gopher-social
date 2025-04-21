@@ -77,12 +77,15 @@ func Seed(store *store.Storage, db *sql.DB) {
 	ctx := context.Background()
 
 	users := generateUsers(50)
+	tx, _ := db.BeginTx(ctx, nil)
 	for _, user := range users {
-		if err := store.User.Create(ctx, user); err != nil {
+		if err := store.User.Create(ctx, tx, user); err != nil {
+			tx.Rollback()
 			log.Printf("Error creating user: %v", err)
 			return
 		}
 	}
+	tx.Commit()
 
 	posts := generatePosts(100, users)
 	for _, post := range posts {

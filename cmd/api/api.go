@@ -10,6 +10,7 @@ import (
 	"go.uber.org/zap"
 
 	docs "github.com/tenteedee/gopher-social/docs" // required for swagger to work
+	"github.com/tenteedee/gopher-social/internal/mailer"
 	"github.com/tenteedee/gopher-social/internal/store"
 )
 
@@ -17,13 +18,31 @@ type application struct {
 	config config
 	store  *store.Storage
 	logger *zap.SugaredLogger
+	mailer mailer.Client
 }
 
 type config struct {
-	address string
-	db      dbConfig
-	env     string
-	apiURL  string
+	address     string
+	db          dbConfig
+	env         string
+	apiURL      string
+	mail        mailConfig
+	frontendURL string
+}
+
+type mailConfig struct {
+	exp       time.Duration
+	fromEmail string
+	sendgrid  sendgridConfig
+	mailTrap  mailTrapConfig
+}
+
+type sendgridConfig struct {
+	apikey string
+}
+
+type mailTrapConfig struct {
+	apikey string
 }
 
 type dbConfig struct {
@@ -68,6 +87,8 @@ func (app *application) mount() *chi.Mux {
 		})
 
 		r.Route("/users", func(r chi.Router) {
+			r.Put("/activate/{token}", app.activateUserHandler)
+
 			r.Route(("/{id}"), func(r chi.Router) {
 				r.Use(app.userContextMiddleware)
 
@@ -80,6 +101,10 @@ func (app *application) mount() *chi.Mux {
 			r.Group(func(r chi.Router) {
 				r.Get("/feed", app.getUserFeedHandler)
 			})
+		})
+
+		r.Route("/authentication", func(r chi.Router) {
+			r.Post("/user", app.registerUserhandler)
 		})
 	})
 
