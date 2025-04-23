@@ -1,2 +1,2 @@
-ALTER TABLE users
-DROP COLUMN is_active;
+ALTER TABLE IF EXISTS users
+DROP COLUMN IF EXISTS is_active;

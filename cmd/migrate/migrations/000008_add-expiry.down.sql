@@ -1,2 +1,2 @@
-ALTER TABLE invitations
-DROP COLUMN expiry;
+ALTER TABLE IF EXISTS invitations
+DROP COLUMN IF EXISTS expiry;

@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-func (store *UserStore) createUserInvitation(ctx context.Context, tx *sql.Tx, userID int64, token string, exp time.Duration) error {
+func (store *UserStore) createUserInvitation(ctx context.Context, tx *sql.Tx, userID int64, hashedToken string, exp time.Duration) error {
 	query := `
 		INSERT INTO invitations (token, user_id, expiry)
 		VALUES ($1, $2, $3)
@@ -17,7 +17,7 @@ func (store *UserStore) createUserInvitation(ctx context.Context, tx *sql.Tx, us
 	ctx, cancel := context.WithTimeout(ctx, QueryTimeoutDuration)
 	defer cancel()
 
-	_, err := tx.ExecContext(ctx, query, token, userID, time.Now().Add(exp))
+	_, err := tx.ExecContext(ctx, query, hashedToken, userID, time.Now().Add(exp))
 	if err != nil {
 		return err
 	}

@@ -1,7 +1,11 @@
 package main
 
 import (
+	"context"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -10,15 +14,21 @@ import (
 	"go.uber.org/zap"
 
 	docs "github.com/tenteedee/gopher-social/docs" // required for swagger to work
+	"github.com/tenteedee/gopher-social/internal/auth"
 	"github.com/tenteedee/gopher-social/internal/mailer"
+	ratelimiter "github.com/tenteedee/gopher-social/internal/rate-limiter"
 	"github.com/tenteedee/gopher-social/internal/store"
+	"github.com/tenteedee/gopher-social/internal/store/cache"
 )
 
 type application struct {
-	config config
-	store  *store.Storage
-	logger *zap.SugaredLogger
-	mailer mailer.Client
+	config        config
+	store         *store.Storage
+	cacheStorage  cache.Storage
+	logger        *zap.SugaredLogger
+	mailer        mailer.Client
+	authenticator auth.Authenticator
+	rateLimiter   ratelimiter.Limiter
 }
 
 type config struct {
@@ -28,6 +38,9 @@ type config struct {
 	apiURL      string
 	mail        mailConfig
 	frontendURL string
+	auth        authConfig
+	redisCfg    redisConfig
+	rateLimiter ratelimiter.Config
 }
 
 type mailConfig struct {
@@ -45,6 +58,30 @@ type mailTrapConfig struct {
 	apikey string
 }
 
+type authConfig struct {
+	basic basicConfig
+	token tokenConfig
+}
+
+type basicConfig struct {
+	user     string
+	password string
+}
+
+type tokenConfig struct {
+	secret   string
+	audience string
+	issuer   string
+	exp      time.Duration
+}
+
+type redisConfig struct {
+	addr    string
+	pw      string
+	db      int
+	enabled bool
+}
+
 type dbConfig struct {
 	dsn          string // Data Source Name
 	maxOpenConns int    // set an upper limit on the number of open connections to the database
@@ -60,12 +97,19 @@ func (app *application) mount() *chi.Mux {
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 
+	if app.config.rateLimiter.Enabled {
+		r.Use(app.RateLimiterMiddleware)
+	}
+
+	// set request timeout on context to signal ctx.Done() if the request has timeout
+	// and further process would be stopped
 	r.Use(middleware.Timeout(60 * time.Second))
 
 	// r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 	// 	w.Write([]byte("welcome"))
 	// })
 	r.Route("/v1", func(r chi.Router) {
+		// r.With(app.BasicAuthMiddleware()).Get("/health", app.healthCheckHandler)
 		r.Get("/health", app.healthCheckHandler)
 
 		r.Get("/swagger/*", httpSwagger.Handler(
@@ -73,6 +117,7 @@ func (app *application) mount() *chi.Mux {
 		))
 
 		r.Route("/posts", func(r chi.Router) {
+			r.Use(app.AuthTokenMiddleware)
 			// r.Get("/", app.getPostsHandler)
 			r.Post("/", app.createPostHandler)
 
@@ -80,8 +125,8 @@ func (app *application) mount() *chi.Mux {
 				r.Use(app.postContextMiddleware)
 
 				r.Get("/", app.getPostByIdHandler)
-				r.Patch("/", app.updatePostHandler)
-				r.Delete("/", app.deletePostHandler)
+				r.Patch("/", app.CheckPostOwnership("moderator", app.updatePostHandler))
+				r.Delete("/", app.CheckPostOwnership("admin", app.deletePostHandler))
 				r.Post("/comments", app.createCommentHandler)
 			})
 		})
@@ -90,21 +135,25 @@ func (app *application) mount() *chi.Mux {
 			r.Put("/activate/{token}", app.activateUserHandler)
 
 			r.Route(("/{id}"), func(r chi.Router) {
-				r.Use(app.userContextMiddleware)
+				r.Use(app.AuthTokenMiddleware)
+				// r.Use(app.userContextMiddleware)
 
 				r.Get("/", app.getUserByIdHandler)
+				// r.Get("/me", app.getUserProfileHandler)
 
 				r.Put("/follow", app.followUserHandler)
 				r.Put("/unfollow", app.unfollowUserHandler)
 			})
 
 			r.Group(func(r chi.Router) {
+				r.Use(app.AuthTokenMiddleware)
 				r.Get("/feed", app.getUserFeedHandler)
 			})
 		})
 
 		r.Route("/authentication", func(r chi.Router) {
 			r.Post("/user", app.registerUserhandler)
+			r.Post("/token", app.createTokenHandler)
 		})
 	})
 
@@ -125,10 +174,42 @@ func (app *application) serve(mux *chi.Mux) error {
 		IdleTimeout:  60 * time.Second,
 	}
 
+	shutdown := make(chan error)
+
+	go func() {
+		quit := make(chan os.Signal, 1)
+
+		signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+		s := <-quit
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		app.logger.Infow("signal caught", "signal", s)
+
+		shutdown <- server.Shutdown(ctx)
+	}()
+
 	app.logger.Infow("server started",
 		"address", app.config.address,
 		"env", app.config.env,
 	)
 
-	return server.ListenAndServe()
+	err := server.ListenAndServe()
+	if err != nil && err != http.ErrServerClosed {
+		app.logger.Errorw("server error", "error", err)
+		return err
+	}
+
+	err = <-shutdown
+	if err != nil {
+		return err
+	}
+
+	app.logger.Infow("server has stopped",
+		"address", app.config.address,
+		"env", app.config.env,
+	)
+
+	return nil
 }

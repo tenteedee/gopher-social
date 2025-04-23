@@ -34,7 +34,7 @@ func (app *application) postContextMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		postID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 		if err != nil {
-			app.BadRequest(w, r, err)
+			app.badRequest(w, r, err)
 			return
 		}
 
@@ -42,10 +42,10 @@ func (app *application) postContextMiddleware(next http.Handler) http.Handler {
 		if err != nil {
 			switch err {
 			case store.ErrorNotFound:
-				app.NotFound(w, r, err)
+				app.notFound(w, r, err)
 				return
 			default:
-				app.InternalServerError(w, r, err)
+				app.internalServerError(w, r, err)
 				return
 			}
 		}
@@ -80,31 +80,32 @@ func getPostFromContext(r *http.Request) (*store.Post, error) {
 func (app *application) createPostHandler(w http.ResponseWriter, r *http.Request) {
 	var payload CreatePostPayload
 	if err := ReadJSON(w, r, &payload); err != nil {
-		app.BadRequest(w, r, err)
+		app.badRequest(w, r, err)
 		return
 	}
 
 	if err := Validate.Struct(payload); err != nil {
-		app.BadRequest(w, r, err)
+		app.badRequest(w, r, err)
 		return
 	}
+
+	user := getUserFromContext(r)
 
 	post := store.Post{
 		Title:   payload.Title,
 		Content: payload.Content,
-		// TODO: change after auth
-		UserID: 1,
-		Tags:   payload.Tags,
+		UserID:  user.ID,
+		Tags:    payload.Tags,
 	}
 
 	response, err := app.store.Post.Create(r.Context(), &post)
 
 	if err != nil {
-		app.InternalServerError(w, r, err)
+		app.internalServerError(w, r, err)
 		return
 	}
 	if err := app.jsonResponse(w, http.StatusCreated, response); err != nil {
-		app.InternalServerError(w, r, err)
+		app.internalServerError(w, r, err)
 		return
 	}
 
@@ -129,17 +130,17 @@ func (app *application) getPostByIdHandler(w http.ResponseWriter, r *http.Reques
 	if err != nil {
 		switch err {
 		case store.ErrorNotFound:
-			app.NotFound(w, r, err)
+			app.notFound(w, r, err)
 			return
 		default:
-			app.InternalServerError(w, r, err)
+			app.internalServerError(w, r, err)
 			return
 		}
 	}
 
 	comments, err := app.store.Comment.GetCommentByPostId(r.Context(), post.ID)
 	if err != nil {
-		app.InternalServerError(w, r, err)
+		app.internalServerError(w, r, err)
 		return
 	}
 	post.Comments = comments
@@ -154,7 +155,7 @@ func (app *application) getPostByIdHandler(w http.ResponseWriter, r *http.Reques
 	// }
 
 	if err := app.jsonResponse(w, http.StatusOK, post); err != nil {
-		app.InternalServerError(w, r, err)
+		app.internalServerError(w, r, err)
 		return
 	}
 }
@@ -177,10 +178,10 @@ func (app *application) deletePostHandler(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		switch err {
 		case store.ErrorNotFound:
-			app.NotFound(w, r, err)
+			app.notFound(w, r, err)
 			return
 		default:
-			app.InternalServerError(w, r, err)
+			app.internalServerError(w, r, err)
 			return
 		}
 	}
@@ -188,10 +189,10 @@ func (app *application) deletePostHandler(w http.ResponseWriter, r *http.Request
 	if err := app.store.Post.Delete(r.Context(), post.ID); err != nil {
 		switch err {
 		case store.ErrorNotFound:
-			app.NotFound(w, r, err)
+			app.notFound(w, r, err)
 			return
 		default:
-			app.InternalServerError(w, r, err)
+			app.internalServerError(w, r, err)
 			return
 		}
 	}
@@ -219,10 +220,10 @@ func (app *application) updatePostHandler(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		switch err {
 		case store.ErrorNotFound:
-			app.NotFound(w, r, err)
+			app.notFound(w, r, err)
 			return
 		default:
-			app.InternalServerError(w, r, err)
+			app.internalServerError(w, r, err)
 			return
 		}
 	}
@@ -230,13 +231,13 @@ func (app *application) updatePostHandler(w http.ResponseWriter, r *http.Request
 	// read the request body into a CreatePostPayload struct
 	var payload UpdatePostPayload
 	if err := ReadJSON(w, r, &payload); err != nil {
-		app.BadRequest(w, r, err)
+		app.badRequest(w, r, err)
 		return
 	}
 
 	// validate the payload
 	if err := Validate.Struct(payload); err != nil {
-		app.BadRequest(w, r, err)
+		app.badRequest(w, r, err)
 		return
 	}
 
@@ -252,12 +253,12 @@ func (app *application) updatePostHandler(w http.ResponseWriter, r *http.Request
 
 	// update the post struct with the payload data
 	if err := app.store.Post.Update(r.Context(), post); err != nil {
-		app.InternalServerError(w, r, err)
+		app.internalServerError(w, r, err)
 		return
 	}
 
 	if err := app.jsonResponse(w, http.StatusOK, post); err != nil {
-		app.InternalServerError(w, r, err)
+		app.internalServerError(w, r, err)
 		return
 	}
 
@@ -284,28 +285,28 @@ func (app *application) createCommentHandler(w http.ResponseWriter, r *http.Requ
 	if err != nil {
 		switch err {
 		case store.ErrorNotFound:
-			app.NotFound(w, r, err)
+			app.notFound(w, r, err)
 			return
 		default:
-			app.InternalServerError(w, r, err)
+			app.internalServerError(w, r, err)
 			return
 		}
 	}
 
 	var payload CreateCommentPayload
 	if err := ReadJSON(w, r, &payload); err != nil {
-		app.BadRequest(w, r, err)
+		app.badRequest(w, r, err)
 		return
 	}
 
 	if err := Validate.Struct(payload); err != nil {
-		app.BadRequest(w, r, err)
+		app.badRequest(w, r, err)
 		return
 	}
 
 	user, err := app.store.User.GetById(r.Context(), payload.UserID)
 	if err != nil {
-		app.InternalServerError(w, r, err)
+		app.internalServerError(w, r, err)
 		return
 	}
 
@@ -316,12 +317,12 @@ func (app *application) createCommentHandler(w http.ResponseWriter, r *http.Requ
 	comment.User = *user
 
 	if err := app.store.Comment.Create(r.Context(), &comment); err != nil {
-		app.InternalServerError(w, r, err)
+		app.internalServerError(w, r, err)
 		return
 	}
 
 	if err := app.jsonResponse(w, http.StatusCreated, comment); err != nil {
-		app.InternalServerError(w, r, err)
+		app.internalServerError(w, r, err)
 		return
 	}
 }

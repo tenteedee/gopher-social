@@ -23,6 +23,15 @@ func getEnvAsInt(key string, fallback int) int {
 	return fallback
 }
 
+func getEnvAsBool(key string, fallback bool) bool {
+	if value := os.Getenv(key); value != "" {
+		if v, err := strconv.ParseBool(value); err == nil {
+			return v
+		}
+	}
+	return fallback
+}
+
 func getEnvAsDuration(key string, defaultValue string) time.Duration {
 	value := getEnvWithDefault(key, defaultValue)
 	duration, err := time.ParseDuration(value)

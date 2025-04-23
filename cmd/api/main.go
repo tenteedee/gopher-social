@@ -2,12 +2,17 @@ package main
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/go-redis/redis/v8"
+	"github.com/tenteedee/gopher-social/internal/auth"
 	"github.com/tenteedee/gopher-social/internal/db"
 	"github.com/tenteedee/gopher-social/internal/env"
 	"github.com/tenteedee/gopher-social/internal/mailer"
+	ratelimiter "github.com/tenteedee/gopher-social/internal/rate-limiter"
 	"github.com/tenteedee/gopher-social/internal/store"
+	"github.com/tenteedee/gopher-social/internal/store/cache"
 	"go.uber.org/zap"
 )
 
@@ -59,6 +64,29 @@ func main() {
 			},
 		},
 		frontendURL: env.FrontendURL,
+		auth: authConfig{
+			basic: basicConfig{
+				user:     env.AuthBasicUser,
+				password: env.AuthBasicPassword,
+			},
+			token: tokenConfig{
+				secret:   env.AuthTokenSecret,
+				audience: env.AuthTokenAudience,
+				issuer:   env.AuthTokenIssuer,
+				exp:      time.Hour * 24 * 3,
+			},
+		},
+		redisCfg: redisConfig{
+			addr:    env.RedisAddress,
+			pw:      env.RedisPassword,
+			db:      env.RedisDB,
+			enabled: env.RedisEnabled,
+		},
+		rateLimiter: ratelimiter.Config{
+			RequestsPerTimeFrame: env.RateLimiterRequestCount,
+			TimeFrame:            env.RateLimiterTimeFrame,
+			Enabled:              env.RateLimiterEnabled,
+		},
 	}
 
 	// Logger
@@ -82,7 +110,15 @@ func main() {
 	defer db.Close()
 	logger.Info("Connected to database")
 
+	// Cache
+	var redisDB *redis.Client
+	if cfg.redisCfg.enabled {
+		redisDB = cache.NewRedisClient(cfg.redisCfg.addr, cfg.redisCfg.pw, cfg.redisCfg.db)
+		logger.Info("Connected to redis")
+	}
+
 	storage := store.NewStorage(db)
+	cacheStorage := cache.NewRedisStorage(redisDB)
 
 	mailer := mailer.NewSendGridMailer(cfg.mail.sendgrid.apikey, cfg.mail.fromEmail)
 	// mailtrap, err := mailer.NewMailTrapClient(cfg.mail.mailTrap.apikey, cfg.mail.fromEmail)
@@ -90,11 +126,15 @@ func main() {
 	// 	logger.Fatal(err)
 	// }
 
+	JwtAuthenticator := auth.NewJWTAuthenticator(cfg.auth.token.secret, cfg.auth.token.audience, cfg.auth.token.issuer)
+
 	app := &application{
-		config: cfg,
-		store:  storage,
-		logger: logger,
-		mailer: mailer,
+		config:        cfg,
+		store:         storage,
+		cacheStorage:  cacheStorage,
+		logger:        logger,
+		mailer:        mailer,
+		authenticator: JwtAuthenticator,
 	}
 	mux := app.mount()
 

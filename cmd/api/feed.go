@@ -37,12 +37,12 @@ func (app *application) getUserFeedHandler(w http.ResponseWriter, r *http.Reques
 
 	fq, err := fq.Parse(r)
 	if err != nil {
-		app.BadRequest(w, r, err)
+		app.badRequest(w, r, err)
 		return
 	}
 
 	if err := Validate.Struct(fq); err != nil {
-		app.BadRequest(w, r, err)
+		app.badRequest(w, r, err)
 		return
 	}
 
@@ -50,16 +50,16 @@ func (app *application) getUserFeedHandler(w http.ResponseWriter, r *http.Reques
 	if err != nil {
 		switch err {
 		case store.ErrorNotFound:
-			app.NotFound(w, r, err)
+			app.notFound(w, r, err)
 			return
 		default:
-			app.InternalServerError(w, r, err)
+			app.internalServerError(w, r, err)
 			return
 		}
 	}
 
 	if err := app.jsonResponse(w, http.StatusOK, posts); err != nil {
-		app.InternalServerError(w, r, err)
+		app.internalServerError(w, r, err)
 		return
 	}
 }
