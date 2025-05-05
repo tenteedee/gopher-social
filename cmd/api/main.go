@@ -117,6 +117,13 @@ func main() {
 		logger.Info("Connected to redis")
 	}
 
+	// Rate limiter
+	// Rate limiter
+	rateLimiter := ratelimiter.NewFixedWindowLimiter(
+		cfg.rateLimiter.RequestsPerTimeFrame,
+		cfg.rateLimiter.TimeFrame,
+	)
+
 	storage := store.NewStorage(db)
 	cacheStorage := cache.NewRedisStorage(redisDB)
 
@@ -135,6 +142,7 @@ func main() {
 		logger:        logger,
 		mailer:        mailer,
 		authenticator: JwtAuthenticator,
+		rateLimiter:   rateLimiter,
 	}
 	mux := app.mount()
 
